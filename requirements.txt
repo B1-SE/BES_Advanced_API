@@ -20,5 +20,6 @@ itsdangerous>=2.0.0
 click>=8.0.0
 blinker>=1.6.0
 greenlet>=3.0.0
+python-dotenv
 typing_extensions>=4.0.0
 redis>=5.0.0
