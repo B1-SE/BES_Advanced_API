@@ -178,14 +178,14 @@ def register_blueprints(app):
         print(f"Warning: Could not import calculations blueprint: {e}")
 
     try:
-        # Correct path for the customers blueprint is in routes.py
+        # Correct path for the customers blueprint is in app/routes/routes.py
         from app.routes.routes import customers_bp
         app.register_blueprint(customers_bp, url_prefix="/customers")
     except (ImportError, ModuleNotFoundError) as e:
         print(f"Warning: Could not import customers blueprint: {e}")
 
     try:
-        # Import from the inventory blueprint's __init__.py
+        # Import from the inventory blueprint's routes file
         from app.blueprints.inventory.routes import inventory_bp
         app.register_blueprint(inventory_bp, url_prefix="/inventory")
     except (ImportError, ModuleNotFoundError) as e:
@@ -193,7 +193,7 @@ def register_blueprints(app):
 
     try:
         # Correct path for the members blueprint
-        from app.routes.members import members_bp
+        from app.routes.members import members_bp # This blueprint is in app/routes/
         app.register_blueprint(members_bp, url_prefix="/members")
     except (ImportError, ModuleNotFoundError) as e:
         print(f"Warning: Could not import members blueprint: {e}")
