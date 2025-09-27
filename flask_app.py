@@ -8,7 +8,3 @@ from config import config
 
 # Create the application
 app = create_app(config["production"])
-
-with app.app_context():
-    # db.drop_all()  # Uncomment to reset the database (use with caution)
-    db.create_all()

@@ -7,25 +7,18 @@ from app import create_app
 from app.extensions import db
 from app.models.customer import Customer
 from app.models.mechanic import Mechanic
-from app.models.inventory import InventoryItem
+from app.models.inventory import Inventory
+from config import config
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def app():
-    """Create application for testing"""
-    app = create_app()
-    app.config.update(
-        {
-            "TESTING": True,
-            "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
-            "WTF_CSRF_ENABLED": False,
-        }
-    )
+    """Create and configure a new app instance for each test module."""
+    # Use the 'testing' configuration from config.py
+    app = create_app(config_class=config["testing"])
 
     with app.app_context():
-        print("Creating database tables...")
         db.create_all()
-        print("Database tables created successfully!")
 
     yield app
 
@@ -33,29 +26,20 @@ def app():
         db.drop_all()
 
 
-@pytest.fixture(scope="function")
-def clean_database(app):
-    """Clean database before each test"""
-    with app.app_context():
-        db.drop_all()
-        db.create_all()
-    yield
-    with app.app_context():
-        db.session.remove()
-
-
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="module")
 def client(app):
     """Create test client"""
     return app.test_client()
 
 
 @pytest.fixture(scope="function")
-def init_database(app, clean_database):
+def init_database(app):
     """Initialize database with test data"""
     with app.app_context():
-        # Create test customer
-        # The 'clean_database' fixture ensures the DB is empty before this runs.
+        # Clean up tables before seeding
+        db.drop_all()
+        db.create_all()
+
         customer = Customer(
             first_name="John",
             last_name="Doe",
@@ -100,7 +84,7 @@ def init_database(app, clean_database):
         db.session.add(mechanic2)
 
         # Create test inventory items
-        inventory_item1 = InventoryItem(
+        inventory_item1 = Inventory(
             name="Engine Oil",
             description="5W-30 Engine Oil",
             quantity=50,
@@ -111,7 +95,7 @@ def init_database(app, clean_database):
         )
         db.session.add(inventory_item1)
 
-        inventory_item2 = InventoryItem(
+        inventory_item2 = Inventory(
             name="Brake Pads",
             description="Front brake pads",
             quantity=20,
@@ -132,3 +116,6 @@ def init_database(app, clean_database):
             "mechanic2": mechanic2,
             "inventory_items": [inventory_item1, inventory_item2],
         }
+
+        # No explicit teardown needed here for function scope,
+        # as the next test will re-run this fixture and clean the DB.

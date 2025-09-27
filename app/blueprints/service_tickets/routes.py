@@ -1,15 +1,17 @@
 """
 Service Ticket routes for the mechanic shop API.
 """
-
 from flask import Blueprint, jsonify, request
 from marshmallow import ValidationError
 from app.extensions import db, limiter
 from app.models.service_ticket import ServiceTicket
 from app.models.mechanic import Mechanic
 from app.models.customer import Customer
-from app.models.inventory import Inventory
-from .schemas import service_ticket_schema, service_tickets_schema
+from app.models.inventory import InventoryItem
+from app.blueprints.service_tickets.schemas import (
+    service_ticket_schema,
+    service_tickets_schema,
+)
 
 # Create service tickets blueprint
 service_tickets_bp = Blueprint("service_tickets", __name__)
@@ -62,7 +64,7 @@ def create_service_ticket():
 @service_tickets_bp.route("/", methods=["GET"])
 def get_service_tickets():
     """Get all service tickets."""
-    service_tickets = ServiceTicket.query.all()
+    service_tickets = db.session.scalars(db.select(ServiceTicket)).all()
     return jsonify(service_tickets_schema.dump(service_tickets)), 200
 
 
@@ -358,7 +360,7 @@ def add_inventory_to_ticket(ticket_id):
 
         # Process additions
         for inventory_id in inventory_ids:
-            inventory_item = db.session.get(Inventory, inventory_id)
+            inventory_item = db.session.get(InventoryItem, inventory_id)
             if not inventory_item:
                 errors.append(f"Inventory item with ID {inventory_id} not found")
                 continue
@@ -449,7 +451,7 @@ def remove_inventory_from_ticket(ticket_id):
 
         # Process removals
         for inventory_id in inventory_ids:
-            inventory_item = db.session.get(Inventory, inventory_id)
+            inventory_item = db.session.get(InventoryItem, inventory_id)
             if not inventory_item:
                 errors.append(f"Inventory item with ID {inventory_id} not found")
                 continue
@@ -515,7 +517,7 @@ def add_single_inventory_to_ticket(ticket_id, inventory_id):
     if not service_ticket:
         return jsonify({"error": "Service ticket not found"}), 404
 
-    inventory_item = db.session.get(Inventory, inventory_id)
+    inventory_item = db.session.get(InventoryItem, inventory_id)
     if not inventory_item:
         return jsonify({"error": "Inventory item not found"}), 404
 
@@ -552,7 +554,7 @@ def remove_single_inventory_from_ticket(ticket_id, inventory_id):
     if not service_ticket:
         return jsonify({"error": "Service ticket not found"}), 404
 
-    inventory_item = db.session.get(Inventory, inventory_id)
+    inventory_item = db.session.get(InventoryItem, inventory_id)
     if not inventory_item:
         return jsonify({"error": "Inventory item not found"}), 404
 

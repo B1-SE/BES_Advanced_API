@@ -1,24 +1,21 @@
 """
 Schemas for the service ticket blueprint.
 """
-from marshmallow import fields, validate
-from app.extensions import ma, db
+
+from app.extensions import ma
 from app.models.service_ticket import ServiceTicket
 from app.blueprints.mechanics.schemas import MechanicSchema
-from app.blueprints.inventory.schemas import InventorySchema
+from app.schemas.inventory import InventorySchema
 
 
 class ServiceTicketSchema(ma.SQLAlchemyAutoSchema):
     """Schema for a single service ticket."""
 
-    description = fields.Str(required=True, validate=validate.Length(min=1))
-    mechanic_ids = fields.List(fields.Int(), load_only=True)
     mechanics = ma.Nested(MechanicSchema, many=True, dump_only=True)
     inventory_parts = ma.Nested(InventorySchema, many=True, dump_only=True)
 
     class Meta:
         model = ServiceTicket
-        sqla_session = db.session
         load_instance = True
         include_fk = True
 

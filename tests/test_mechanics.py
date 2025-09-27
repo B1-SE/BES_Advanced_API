@@ -21,12 +21,8 @@ class TestMechanicsAPI:
         response = client.get("/mechanics/")
         assert response.status_code == 200
         data = response.get_json()
-        # Response is a dict with 'mechanics' key, not a list
-        assert isinstance(data, dict)
-        assert "mechanics" in data
-        assert "count" in data
-        assert isinstance(data["mechanics"], list)
-        assert len(data["mechanics"]) == 2
+        assert isinstance(data, list)
+        assert len(data) == 2
 
     def test_create_mechanic_success(self, client, clean_database):
         """Test POST /mechanics/ - positive case"""

@@ -157,87 +157,45 @@ def register_blueprints(app):
 
     # Register main API blueprints
     try:
-        from app.routes.calculations import calculations_bp
-
-        app.register_blueprint(calculations_bp, url_prefix="/calculations")
-    except ImportError as e:
-        print(f"Warning: Could not import calculations blueprint: {e}")
-
-    try:
-        from app.routes.customers import customers_bp
-
-        app.register_blueprint(customers_bp, url_prefix="/customers")
-    except ImportError as e:
-        print(f"Warning: Could not import customers blueprint: {e}")
-
-    try:
-        from app.routes.inventory import inventory_bp
-
-        app.register_blueprint(inventory_bp, url_prefix="/inventory")
-    except ImportError as e:
-        print(f"Warning: Could not import inventory blueprint: {e}")
-
-    try:
-        from app.routes.mechanics import mechanics_bp
-
+        # Correctly import from the routes file where the blueprint is defined
+        from app.blueprints.mechanics.routes import mechanics_bp
         app.register_blueprint(mechanics_bp, url_prefix="/mechanics")
     except ImportError as e:
         print(f"Warning: Could not import mechanics blueprint: {e}")
 
     try:
-        from app.routes.service_tickets import service_tickets_bp
-
+        # The service_tickets_bp is re-exported in the __init__.py, so this is fine
+        from app.blueprints.service_tickets import service_tickets_bp
         app.register_blueprint(service_tickets_bp, url_prefix="/service-tickets")
     except ImportError as e:
         print(f"Warning: Could not import service_tickets blueprint: {e}")
 
-    # Create members blueprint as alias to customers - FIXED parameter handling
     try:
-        members_bp = Blueprint("members", __name__)
+        from app.blueprints.calculations.routes import calculations_bp
+        app.register_blueprint(calculations_bp) # url_prefix is in the blueprint file
+    except (ImportError, ModuleNotFoundError) as e:
+        print(f"Warning: Could not import calculations blueprint: {e}")
 
-        # Register members routes that delegate to customers
-        @members_bp.route("/", methods=["GET"])
-        def get_members():
-            from app.routes.customers import get_all_customers
+    try:
+        # Correct path for the customers blueprint
+        from app.routes.routes import customers_bp
+        app.register_blueprint(customers_bp, url_prefix="/customers")
+    except (ImportError, ModuleNotFoundError) as e:
+        print(f"Warning: Could not import customers blueprint: {e}")
 
-            return get_all_customers()
+    try:
+        # Import from the inventory blueprint's __init__.py
+        from app.blueprints.inventory import inventory_bp
+        app.register_blueprint(inventory_bp, url_prefix="/inventory")
+    except (ImportError, ModuleNotFoundError) as e:
+        print(f"Warning: Could not import inventory blueprint: {e}")
 
-        @members_bp.route("/", methods=["POST"])
-        def create_member():
-            from app.routes.customers import create_customer
-
-            return create_customer()
-
-        @members_bp.route("/<int:member_id>", methods=["GET"])
-        def get_member(member_id):
-            from app.routes.customers import get_customer
-
-            return get_customer(member_id)
-
-        @members_bp.route("/<int:member_id>", methods=["PUT"])
-        def update_member(member_id):
-            from app.routes.customers import update_customer
-
-            # The update_customer function expects `current_customer` from the token
-            # The token_required decorator will handle this when the request is processed
-            return update_customer(customer_id=member_id)
-
-        @members_bp.route("/<int:member_id>", methods=["DELETE"])
-        def delete_member(member_id):
-            from app.routes.customers import delete_customer
-
-            return delete_customer(customer_id=member_id)
-
-        @members_bp.route("/login", methods=["POST"])
-        def member_login():
-            from app.routes.customers import login
-
-            return login()
-
+    try:
+        # Register the members blueprint
+        from app.routes.members import members_bp
         app.register_blueprint(members_bp, url_prefix="/members")
-
-    except ImportError as e:
-        print(f"Warning: Could not create members blueprint: {e}")
+    except (ImportError, ModuleNotFoundError) as e:
+        print(f"Warning: Could not import members blueprint: {e}")
 
 
 def register_additional_routes(app):

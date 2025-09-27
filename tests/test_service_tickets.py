@@ -9,11 +9,10 @@ class TestServiceTicketAPI:
     def test_create_service_ticket_success(self, client, init_database):
         """Test POST /service-tickets/ - success case"""
         service_ticket_data = {
-            "customer_id": 1,
-            "mechanic_id": 1,
-            "vehicle_info": "2021 Honda Civic",
-            "description": "Oil change required",
-            "estimated_cost": 50.00,
+            "customer_id": 1,  # Assuming customer with id 1 exists from init_database
+            "description": "Oil change and tire rotation",
+            "service_date": "2024-08-15",
+            "mechanic_ids": [1],  # Assuming mechanic with id 1 exists
         }
 
         response = client.post(
@@ -25,9 +24,9 @@ class TestServiceTicketAPI:
         assert response.status_code == 201
         data = response.get_json()
         assert data["customer_id"] == 1
-        assert data["mechanic_id"] == 1
-        assert data["vehicle_info"] == "2021 Honda Civic"
-        assert data["status"] == "pending"
+        assert data["description"] == "Oil change and tire rotation"
+        assert len(data["mechanics"]) == 1
+        assert data["mechanics"][0]["id"] == 1
 
     def test_get_all_service_tickets_success(self, client, init_database):
         """Test GET /service-tickets/ - success case"""
@@ -35,18 +34,15 @@ class TestServiceTicketAPI:
 
         assert response.status_code == 200
         data = response.get_json()
-        assert "service_tickets" in data
-        assert len(data["service_tickets"]) >= 0
+        assert isinstance(data, list)
 
     def test_get_service_ticket_by_id_success(self, client, init_database):
         """Test GET /service-tickets/{id} - success case"""
         # First create a service ticket to ensure it exists
         service_ticket_data = {
             "customer_id": 1,
-            "mechanic_id": 1,
-            "vehicle_info": "2021 Honda Civic",
             "description": "Test service",
-            "estimated_cost": 100.00,
+            "service_date": "2024-08-16",
         }
 
         create_response = client.post(

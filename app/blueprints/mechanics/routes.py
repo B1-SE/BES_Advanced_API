@@ -3,10 +3,14 @@ Mechanic routes for the mechanic shop API.
 """
 
 from flask import Blueprint, jsonify, request
-from marshmallow import ValidationError
 from app.extensions import db, cache, limiter
 from app.models.mechanic import Mechanic
-from .schemas import mechanic_schema, mechanics_schema
+from app.blueprints.mechanics.schemas import mechanic_schema, mechanics_schema
+
+try:
+    from marshmallow import ValidationError
+except ImportError:
+    ValidationError = Exception  # fallback to generic Exception if marshmallow is missing
 
 # Create mechanic blueprint
 mechanics_bp = Blueprint("mechanics", __name__)
@@ -146,7 +150,7 @@ def get_mechanics():
     Caching reduces database load and improves response times for this
     common read operation. Cache is invalidated when mechanics are added/updated/deleted.
     """
-    mechanics = Mechanic.query.all()
+    mechanics = db.session.scalars(db.select(Mechanic)).all()
     return jsonify(mechanics_schema.dump(mechanics)), 200
 
 

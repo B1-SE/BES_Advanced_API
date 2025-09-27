@@ -2,136 +2,61 @@
 Test script for JWT token authentication functionality.
 """
 
-import requests
 
-BASE_URL = "http://127.0.0.1:5000"
+def test_login_and_get_token(client, init_database):
+    """Test login with correct and incorrect credentials."""
+    # Test 1: Login with correct credentials
+    login_data = {"email": "john.doe@test.com", "password": "password123"}
+    response = client.post("/customers/login", json=login_data)
+    assert response.status_code == 200
+    json_data = response.get_json()
+    assert "token" in json_data
+    assert json_data["message"] == "Login successful"
+
+    # Test 2: Login with wrong credentials
+    wrong_login_data = {"email": "john.doe@test.com", "password": "wrongpassword"}
+    response = client.post("/customers/login", json=wrong_login_data)
+    assert response.status_code == 401
+    assert "Invalid email or password" in response.get_json()["message"]
 
 
-def test_token_authentication():
-    """Test the complete token authentication flow."""
+def test_protected_route_access(client, init_database):
+    """Test accessing a protected route with and without a token."""
+    # Test 1: Access protected route without token
+    response = client.get("/customers/my-tickets")
+    assert response.status_code == 401  # Expecting JWT error
 
-    print("🔐 Testing JWT Token Authentication System")
-    print("=" * 50)
-
-    # Test 1: Create a customer with password
-    print("\n1. Creating a customer with password...")
-    customer_data = {
-        "first_name": "John",
-        "last_name": "Doe",
-        "email": "john.doe@example.com",
-        "phone_number": "555-0123",
-        "password": "securepassword123",
-    }
-
-    response = requests.post(f"{BASE_URL}/customers/", json=customer_data)
-    print(f"Status: {response.status_code}")
-    if response.status_code == 201:
-        customer = response.json()
-        print(f"✅ Customer created: {customer['first_name']} {customer['last_name']}")
-        customer_id = customer["id"]
-    else:
-        print(f"❌ Failed to create customer: {response.text}")
-        return
-
-    # Test 2: Login with correct credentials
-    print("\n2. Testing login with correct credentials...")
-    login_data = {"email": "john.doe@example.com", "password": "securepassword123"}
-
-    response = requests.post(f"{BASE_URL}/customers/login", json=login_data)
-    print(f"Status: {response.status_code}")
-    if response.status_code == 200:
-        login_result = response.json()
-        print("✅ Login successful!")
-        print(f"Token: {login_result['token'][:50]}...")
-        token = login_result["token"]
-    else:
-        print(f"❌ Login failed: {response.text}")
-        return
-
-    # Test 3: Login with wrong credentials
-    print("\n3. Testing login with wrong credentials...")
-    wrong_login_data = {"email": "john.doe@example.com", "password": "wrongpassword"}
-
-    response = requests.post(f"{BASE_URL}/customers/login", json=wrong_login_data)
-    print(f"Status: {response.status_code}")
-    if response.status_code == 401:
-        print("✅ Login correctly rejected with wrong password")
-    else:
-        print(f"❌ Unexpected response: {response.text}")
-
-    # Test 4: Access protected route without token
-    print("\n4. Testing protected route without token...")
-    response = requests.get(f"{BASE_URL}/customers/my-tickets")
-    print(f"Status: {response.status_code}")
-    if response.status_code == 401:
-        print("✅ Protected route correctly rejected without token")
-    else:
-        print(f"❌ Unexpected response: {response.text}")
-
-    # Test 5: Access protected route with valid token
-    print("\n5. Testing protected route with valid token...")
+    # Test 2: Access protected route with valid token
+    login_data = {"email": "john.doe@test.com", "password": "password123"}
+    login_response = client.post("/customers/login", json=login_data)
+    token = login_response.get_json()["token"]
     headers = {"Authorization": f"Bearer {token}"}
-    response = requests.get(f"{BASE_URL}/customers/my-tickets", headers=headers)
-    print(f"Status: {response.status_code}")
-    if response.status_code == 200:
-        tickets_result = response.json()
-        print("✅ Protected route accessed successfully!")
-        print(f"Found {len(tickets_result['tickets'])} service tickets")
-    else:
-        print(f"❌ Failed to access protected route: {response.text}")
 
-    # Test 6: Try to update another customer's information
-    print("\n6. Testing authorization (trying to update another customer)...")
-    # First create another customer
-    other_customer_data = {
-        "first_name": "Jane",
-        "last_name": "Smith",
-        "email": "jane.smith@example.com",
-        "phone_number": "555-0456",
-        "password": "anotherpassword",
-    }
+    response = client.get("/customers/my-tickets", headers=headers)
+    assert response.status_code == 200
+    assert "tickets" in response.get_json()
 
-    response = requests.post(f"{BASE_URL}/customers/", json=other_customer_data)
-    if response.status_code == 201:
-        other_customer = response.json()
-        other_customer_id = other_customer["id"]
 
-        # Try to update other customer with John's token
-        update_data = {"first_name": "Updated"}
-        response = requests.put(
-            f"{BASE_URL}/customers/{other_customer_id}",
-            json=update_data,
-            headers=headers,
-        )
-        print(f"Status: {response.status_code}")
-        if response.status_code == 403:
-            print("✅ Authorization correctly prevents updating other customers")
-        else:
-            print(f"❌ Unexpected response: {response.text}")
+def test_authorization_flow(client, init_database):
+    """Test that a user cannot modify another user's data."""
+    # Get customer IDs from the init_database fixture
+    customer1_id = init_database["customer"].id
+    customer2_id = init_database["customer2"].id
 
-    # Test 7: Update own information
-    print("\n7. Testing updating own customer information...")
+    # Log in as customer 1
+    login_data = {"email": "john.doe@test.com", "password": "password123"}
+    login_response = client.post("/customers/login", json=login_data)
+    token = login_response.get_json()["token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Test 1: Try to update another customer's information (should be forbidden)
+    update_data = {"first_name": "UpdatedByJohn"}
+    response = client.put(f"/customers/{customer2_id}", json=update_data, headers=headers)
+    assert response.status_code == 403
+    assert "You can only update your own profile" in response.get_json()["message"]
+
+    # Test 2: Update own information (should be successful)
     update_data = {"first_name": "Johnny"}
-    response = requests.put(
-        f"{BASE_URL}/customers/{customer_id}", json=update_data, headers=headers
-    )
-    print(f"Status: {response.status_code}")
-    if response.status_code == 200:
-        updated_customer = response.json()
-        print(f"✅ Successfully updated customer: {updated_customer['first_name']}")
-    else:
-        print(f"❌ Failed to update customer: {response.text}")
-
-    print("\n" + "=" * 50)
-    print("🎉 Token authentication testing complete!")
-
-
-if __name__ == "__main__":
-    try:
-        test_token_authentication()
-    except requests.exceptions.ConnectionError:
-        print(
-            "❌ Could not connect to server. Make sure the Flask app is running on http://127.0.0.1:5000"
-        )
-    except Exception as e:
-        print(f"❌ Error during testing: {e}")
+    response = client.put(f"/customers/{customer1_id}", json=update_data, headers=headers)
+    assert response.status_code == 200
+    assert response.get_json()["first_name"] == "Johnny"

@@ -1,6 +1,10 @@
-# app/blueprints/inventory/__init__.py
+"""
+Inventory blueprint initialization.
+"""
+
 from flask import Blueprint
 
-inventory_bp = Blueprint("inventory", __name__, url_prefix="/inventory")
+inventory_bp = Blueprint("inventory", __name__)
 
-from . import routes as routes  # noqa: F401,E402
+# Import routes after blueprint initialization to avoid circular imports
+from . import routes  # noqa: F401, E402
