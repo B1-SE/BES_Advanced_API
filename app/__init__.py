@@ -159,43 +159,43 @@ def register_blueprints(app):
 
     # Register main API blueprints
     try:
-        # Standardize import from the blueprint's routes file
+        # Correct import path for mechanics blueprint
         from app.routes.mechanics import mechanics_bp
         app.register_blueprint(mechanics_bp, url_prefix="/mechanics")
     except ImportError as e:
         print(f"Warning: Could not import mechanics blueprint: {e}")
 
     try:
-        # Standardize import from the blueprint's routes file
+        # Correct import path for service_tickets blueprint
         from app.blueprints.service_tickets.routes import service_tickets_bp
         app.register_blueprint(service_tickets_bp, url_prefix="/service-tickets")
     except ImportError as e:
         print(f"Warning: Could not import service_tickets blueprint: {e}")
 
     try:
-        # Standardize import from the blueprint's routes file
+        # Correct import path for calculations blueprint
         from app.routes.calculations import calculations_bp
-        app.register_blueprint(calculations_bp, url_prefix="/calculations")
+        app.register_blueprint(calculations_bp)  # url_prefix is defined in the blueprint
     except (ImportError, ModuleNotFoundError) as e:
         print(f"Warning: Could not import calculations blueprint: {e}")
 
     try:
-        # Path for the customers blueprint is in app/routes/routes.py
+        # Correct import path for customers blueprint
         from app.routes.routes import customers_bp
         app.register_blueprint(customers_bp, url_prefix="/customers")
     except (ImportError, ModuleNotFoundError) as e:
         print(f"Warning: Could not import customers blueprint: {e}")
 
     try:
-        # Import from the inventory blueprint's routes file
+        # Correct import path for inventory blueprint
         from app.routes.inventory import inventory_bp
         app.register_blueprint(inventory_bp, url_prefix="/inventory")
     except (ImportError, ModuleNotFoundError) as e:
         print(f"Warning: Could not import inventory blueprint: {e}")
 
     try:
-        # Path for the members blueprint is in app/routes/members.py
-        from app.routes.members import members_bp # This blueprint is in app/routes/
+        # Correct import path for members blueprint
+        from app.routes.members import members_bp
         app.register_blueprint(members_bp, url_prefix="/members")
     except (ImportError, ModuleNotFoundError) as e:
         print(f"Warning: Could not import members blueprint: {e}")

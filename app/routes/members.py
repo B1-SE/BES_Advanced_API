@@ -5,7 +5,7 @@ Member routes - wrapping customer functionality for members
 from flask import Blueprint, request, jsonify
 from app.extensions import db, limiter
 from app.models.customer import Customer
-from app.schemas.customer import customer_schema, customers_schema
+from app.blueprints.customers.schemas import customer_schema, customers_schema
 from app.utils.auth import generate_token, token_required
 from app.utils.util import validate_email
 
