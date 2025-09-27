@@ -7,7 +7,7 @@ from app.extensions import db, limiter
 from app.models.customer import Customer
 from app.models.service_ticket import ServiceTicket
 from app.blueprints.customers.schemas import customer_schema, customers_schema
-from app.utils.auth import generate_token, token_required
+from app.utils.auth import generate_token, token_required # Correct import for token_required
 from app.utils.util import validate_email
 
 # Create customers blueprint

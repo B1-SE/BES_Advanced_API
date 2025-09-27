@@ -25,7 +25,9 @@ def create_app(config_class=None):
     Returns:
         Flask: Configured Flask application instance
     """
-    app = Flask(__name__)
+    # Point template_folder to the project root where index.html is located
+    # The '..' moves up one directory from the current package ('app').
+    app = Flask(__name__, template_folder="..")
 
     # Load configuration
     if config_class is None:
