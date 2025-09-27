@@ -157,27 +157,28 @@ def register_blueprints(app):
 
     # Register main API blueprints
     try:
-        # Correctly import from the routes file where the blueprint is defined
-        from app.blueprints.mechanics.routes import mechanics_bp
+        # Import from the mechanics blueprint's __init__.py
+        from app.blueprints.mechanics import mechanics_bp
         app.register_blueprint(mechanics_bp, url_prefix="/mechanics")
     except ImportError as e:
         print(f"Warning: Could not import mechanics blueprint: {e}")
 
     try:
-        # The service_tickets_bp is re-exported in the __init__.py, so this is fine
+        # Import from the service_tickets blueprint's __init__.py
         from app.blueprints.service_tickets import service_tickets_bp
         app.register_blueprint(service_tickets_bp, url_prefix="/service-tickets")
     except ImportError as e:
         print(f"Warning: Could not import service_tickets blueprint: {e}")
 
     try:
-        from app.blueprints.calculations.routes import calculations_bp
-        app.register_blueprint(calculations_bp) # url_prefix is in the blueprint file
+        # Import from the calculations blueprint's __init__.py
+        from app.blueprints.calculations import calculations_bp
+        app.register_blueprint(calculations_bp, url_prefix="/calculations")
     except (ImportError, ModuleNotFoundError) as e:
         print(f"Warning: Could not import calculations blueprint: {e}")
 
     try:
-        # Correct path for the customers blueprint
+        # Correct path for the customers blueprint is in routes.py
         from app.routes.routes import customers_bp
         app.register_blueprint(customers_bp, url_prefix="/customers")
     except (ImportError, ModuleNotFoundError) as e:
@@ -185,13 +186,13 @@ def register_blueprints(app):
 
     try:
         # Import from the inventory blueprint's __init__.py
-        from app.blueprints.inventory import inventory_bp
+        from app.blueprints.inventory.routes import inventory_bp
         app.register_blueprint(inventory_bp, url_prefix="/inventory")
     except (ImportError, ModuleNotFoundError) as e:
         print(f"Warning: Could not import inventory blueprint: {e}")
 
     try:
-        # Register the members blueprint
+        # Correct path for the members blueprint
         from app.routes.members import members_bp
         app.register_blueprint(members_bp, url_prefix="/members")
     except (ImportError, ModuleNotFoundError) as e:
