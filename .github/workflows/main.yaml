@@ -54,6 +54,9 @@ jobs:
           pip install pytest # Make sure pytest is installed for the test job
 
       - name: Run tests
+        env:
+          # Set a dummy DATABASE_URL to prevent ValueError during config import
+          DATABASE_URL: "sqlite:///:memory:"
         run: python -m unittest discover tests
 
   deploy:
