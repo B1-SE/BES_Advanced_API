@@ -59,7 +59,7 @@ python run.py
 ### With Environment Variables
 ```bash
 export FLASK_ENV=development
-export DEV_DATABASE_URL=sqlite:///custom.db
+export DATABASE_URL=sqlite:///custom.db
 python run.py
 ```
 

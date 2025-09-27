@@ -35,7 +35,7 @@ class DevelopmentConfig(Config):
 
     DEBUG = True
     SQLALCHEMY_DATABASE_URI = (
-        os.environ.get("DEV_DATABASE_URL")
+        os.environ.get("DATABASE_URL")
         or f"sqlite:///{BASE_DIR}/instance/mechanic_shop_dev.db"
     )
 
