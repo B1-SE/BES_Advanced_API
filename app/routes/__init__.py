@@ -1,7 +1,6 @@
 """
 Routes package for the mechanic shop application.
 """
-
 from .customers import customers_bp
 from .calculations import calculations_bp
 from .members import members_bp
