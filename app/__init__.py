@@ -3,7 +3,7 @@ Application factory for the mechanic shop Flask application.
 """
 
 from flask import Flask, send_from_directory, jsonify
-from flask import Blueprint
+from flask import Blueprint, render_template
 from sqlalchemy import inspect
 from datetime import datetime
 import os
@@ -204,21 +204,8 @@ def register_additional_routes(app):
     # API root endpoint
     @app.route("/")
     def index():
-        """API information endpoint."""
-        return {
-            "message": "Welcome to the Mechanic Shop API",
-            "version": "1.0.0",
-            "endpoints": {
-                "customers": "/customers",
-                "mechanics": "/mechanics",
-                "service_tickets": "/service-tickets",
-                "inventory": "/inventory",
-                "members": "/members",
-                "calculations": "/calculations",
-                "health": "/health",
-                "api_docs": "/docs",
-            },
-        }, 200
+        """Serves the homepage."""
+        return render_template("index.html")
 
     # Health check endpoint
     @app.route("/health")
