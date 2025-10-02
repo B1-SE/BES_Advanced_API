@@ -2,7 +2,7 @@
 Authentication utilities for the mechanic shop application.
 """
 
-import jwt
+import jwt  # Make sure 'PyJWT' is installed: pip install PyJWT
 import os
 from datetime import datetime, timedelta, timezone
 from flask import jsonify, request

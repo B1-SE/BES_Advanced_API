@@ -5,6 +5,7 @@ Application factory for the mechanic shop Flask application.
 from flask import Flask, send_from_directory, jsonify
 from flask import Blueprint, render_template
 from sqlalchemy import inspect
+from flask_migrate import Migrate
 from datetime import datetime
 import os
 from config import config
@@ -34,6 +35,13 @@ def create_app(config_class=None):
 
     app.config.from_object(config_class)
 
+    # For production, ensure critical environment variables are set.
+    # This check is now done at app creation time, not import time.
+    if app.config["ENV"] == "production":
+        if not app.config.get("SQLALCHEMY_DATABASE_URI"):
+            raise ValueError("DATABASE_URL is not set for the production environment.")
+        # You could add a similar check for SECRET_KEY here as well.
+
     # Configure caching (using simple in-memory cache for development)
     app.config["CACHE_TYPE"] = "simple"
     app.config["CACHE_DEFAULT_TIMEOUT"] = 300  # 5 minutes default cache timeout
@@ -45,28 +53,17 @@ def create_app(config_class=None):
     cache.init_app(app)  # Initialize cache
     jwt.init_app(app)
     cors.init_app(app)
+    Migrate(app, db)  # Initialize Flask-Migrate
 
     # Register blueprints
     register_blueprints(app)
 
-    # Create database tables
+    # Import models here so they are registered with Flask-Migrate and other extensions
     with app.app_context():
-        inspector = inspect(db.engine)
-        # Import models to ensure they are registered with SQLAlchemy
-        try:
-            from app.models import (
-                customer,  # noqa: F401
-                service_ticket,  # noqa: F401
-                mechanic,  # noqa: F401
-                inventory,  # noqa: F401
-            )
-        except ImportError as e:
-            print(f"Warning: Could not import some models: {e}")
+        from . import models  # noqa: F441, F401
 
-        if not inspector.has_table("customers"):
-            print("Creating database tables...")
-            db.create_all()
-            print("Database tables created successfully!")
+    # The database creation logic is now handled by Flask-Migrate CLI commands
+    # This prevents the app from trying to create tables on every startup.
 
     # Only register Swagger in non-testing environments
     if not app.config.get("TESTING", False):
@@ -156,48 +153,24 @@ def setup_swagger(app):
 def register_blueprints(app):
     """Register application blueprints"""
 
-    # Register main API blueprints
-    try:
-        # Correct import path for mechanics blueprint
-        from app.routes.mechanics import mechanics_bp
-        app.register_blueprint(mechanics_bp, url_prefix="/mechanics")
-    except ImportError as e:
-        print(f"Warning: Could not import mechanics blueprint: {e}")
+    blueprints_to_register = [
+        ("app.routes.mechanics", "mechanics_bp", "/mechanics"),
+        ("app.blueprints.service_tickets.routes", "service_tickets_bp", "/service-tickets"),
+        ("app.routes.calculations", "calculations_bp", None),
+        ("app.routes.routes", "customers_bp", "/customers"),
+        ("app.routes.inventory", "inventory_bp", "/inventory"),
+        ("app.routes.members", "members_bp", "/members"),
+    ]
 
-    try:
-        # Correct import path for service_tickets blueprint
-        from app.blueprints.service_tickets.routes import service_tickets_bp
-        app.register_blueprint(service_tickets_bp, url_prefix="/service-tickets")
-    except ImportError as e:
-        print(f"Warning: Could not import service_tickets blueprint: {e}")
-
-    try:
-        # Correct import path for calculations blueprint
-        from app.routes.calculations import calculations_bp
-        app.register_blueprint(calculations_bp)  # url_prefix is defined in the blueprint
-    except (ImportError, ModuleNotFoundError) as e:
-        print(f"Warning: Could not import calculations blueprint: {e}")
-
-    try:
-        # Correct import path for customers blueprint
-        from app.routes.routes import customers_bp
-        app.register_blueprint(customers_bp, url_prefix="/customers")
-    except (ImportError, ModuleNotFoundError) as e:
-        print(f"Warning: Could not import customers blueprint: {e}")
-
-    try:
-        # Correct import path for inventory blueprint
-        from app.routes.inventory import inventory_bp
-        app.register_blueprint(inventory_bp, url_prefix="/inventory")
-    except (ImportError, ModuleNotFoundError) as e:
-        print(f"Warning: Could not import inventory blueprint: {e}")
-
-    try:
-        # Correct import path for members blueprint
-        from app.routes.members import members_bp
-        app.register_blueprint(members_bp, url_prefix="/members")
-    except (ImportError, ModuleNotFoundError) as e:
-        print(f"Warning: Could not import members blueprint: {e}")
+    for module_path, bp_name, url_prefix in blueprints_to_register:
+        try:
+            # Dynamically import the module and get the blueprint object
+            module = __import__(module_path, fromlist=[bp_name])
+            blueprint = getattr(module, bp_name)
+            # Register the blueprint, with or without a URL prefix
+            app.register_blueprint(blueprint, url_prefix=url_prefix)
+        except (ImportError, AttributeError, ModuleNotFoundError) as e:
+            print(f"Warning: Could not import or register blueprint '{bp_name}' from '{module_path}': {e}")
 
 
 def register_additional_routes(app):
