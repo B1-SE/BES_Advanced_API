@@ -2,6 +2,14 @@ import pytest
 from app import create_app
 
 
+def pytest_configure():
+    """Configure pytest settings"""
+    from pytest_mock import mocker
+
+    # Add any global pytest configuration here
+    pass
+
+
 @pytest.fixture
 def app():
     """Create application for testing"""
