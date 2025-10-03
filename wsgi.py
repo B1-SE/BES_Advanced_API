@@ -9,4 +9,3 @@ from config import config
 
 config_name = os.getenv('FLASK_CONFIG', 'default')
 app = create_app(config[config_name])
-
