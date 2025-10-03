@@ -4,7 +4,6 @@ Application factory for the mechanic shop Flask application.
 
 from flask import Flask, send_from_directory, jsonify
 from flask import Blueprint, render_template
-from sqlalchemy import inspect
 from flask_migrate import Migrate
 from datetime import datetime
 import os
@@ -54,7 +53,12 @@ def create_app(config_class=None):
     cache.init_app(app)  # Initialize cache
     jwt.init_app(app)
     cors.init_app(app)
-    Migrate(app, db)  # Initialize Flask-Migrate
+
+    # Conditionally initialize Flask-Migrate
+    try:
+        Migrate(app, db)
+    except NameError:
+        pass  # flask_migrate is not installed, skip
 
     # Register blueprints
     register_blueprints(app)
