@@ -160,7 +160,6 @@ def register_blueprints(app):
         ("app.blueprints.customers", "customers_bp", None), # url_prefix is in the blueprint
         ("app.routes.calculations", "calculations_bp", None),
         ("app.blueprints.inventory", "inventory_bp", None),
-        ("app.blueprints.members", "members_bp", None),
     ]
 
     for module_path, bp_name, url_prefix in blueprints_to_register:
