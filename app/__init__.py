@@ -159,8 +159,8 @@ def register_blueprints(app):
         ("app.blueprints.service_tickets.routes", "service_tickets_bp", "/service-tickets"),
         ("app.blueprints.customers", "customers_bp", None), # url_prefix is in the blueprint
         ("app.routes.calculations", "calculations_bp", None),
-        ("app.routes.inventory", "inventory_bp", "/inventory"),
-        ("app.routes.members", "members_bp", "/members"),
+        ("app.blueprints.inventory", "inventory_bp", None),
+        ("app.blueprints.members", "members_bp", None),
     ]
 
     for module_path, bp_name, url_prefix in blueprints_to_register:

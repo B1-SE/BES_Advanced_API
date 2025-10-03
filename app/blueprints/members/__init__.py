@@ -1,5 +1,9 @@
 """
-Members blueprint initialization.
+Members blueprint package.
 """
 
-from .routes import members_bp as members_bp  # noqa: F401
+from flask import Blueprint
+
+members_bp = Blueprint("members", __name__, url_prefix="/members")
+
+from . import routes  # noqa: F401, E402

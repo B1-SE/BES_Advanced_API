@@ -1,313 +1,174 @@
 """
-Member routes for the mechanic shop API.
+Member routes - wrapping customer functionality for members
 """
-
-from flask import Blueprint, jsonify, request
-from marshmallow import ValidationError
-from app.extensions import db, cache, limiter
-from app.models.member import Member
-from .schemas import (
-    member_create_schema,
-    member_update_schema,
-    member_response_schema,
-    members_response_schema,
-)
-
-# Create member blueprint
-members_bp = Blueprint("members", __name__)
-
-
-@members_bp.route("/", methods=["POST"])
-@limiter.limit("5 per minute")  # Rate limit member creation
-def create_member():
-    """
-    Create a new member.
-
-    Rate Limited: 5 requests per minute per IP address
-    WHY: Prevents spam member account creation and protects against
-    automated attacks that could flood the system with fake accounts.
-    """
-    try:
-        json_data = request.get_json()
-        if not json_data:
-            return jsonify({"message": "No input data provided"}), 400
-
-        # Validate and load the data
-        member_data = member_create_schema.load(json_data)
-
-        # Check if email already exists
-        existing_member = Member.query.filter_by(email=member_data["email"]).first()
-        if existing_member:
-            return (
-                jsonify({"error": "Email already associated with another member"}),
-                400,
-            )
-
-        # Create new member
-        new_member = Member(
-            first_name=member_data["first_name"],
-            last_name=member_data["last_name"],
-            email=member_data["email"],
-            phone_number=member_data.get("phone_number"),
-            role=member_data.get("role", "member"),
-            is_active=member_data.get("is_active", True),
-        )
-
-        # Set password hash
-        new_member.set_password(member_data["password"])
-
-        db.session.add(new_member)
-        db.session.commit()
-
-        # Clear the cached members list since we added a new member
-        cache.delete("all_members")
-
-        return (
-            jsonify(
-                {
-                    "message": "Member created successfully",
-                    "member": member_response_schema.dump(new_member),
-                }
-            ),
-            201,
-        )
-
-    except ValidationError as err:
-        return jsonify({"error": "Validation failed", "details": err.messages}), 400
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({"error": "Failed to create member", "message": str(e)}), 500
+from flask import request, jsonify
+from app.extensions import db, limiter
+from app.models.customer import Customer
+from app.blueprints.customers.schemas import customer_schema, customers_schema
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
+from app.utils.util import validate_email
+from . import members_bp
 
 
 @members_bp.route("/", methods=["GET"])
-@cache.cached(timeout=300, key_prefix="all_members")  # Cache for 5 minutes
+@limiter.limit("100 per minute")
 def get_members():
-    """
-    Get all members.
-
-    Query Parameters:
-    - role: Filter by role (member, admin, manager)
-    - is_active: Filter by active status (true, false)
-
-    Cached: 5 minutes (300 seconds)
-    WHY: Members list is frequently accessed but changes less often than other data.
-    Caching reduces database load and improves response times for this
-    common read operation. Cache is invalidated when members are added/updated/deleted.
-    """
+    """Get all members"""
     try:
-        # Get query parameters
-        role_filter = request.args.get("role")
-        is_active_filter = request.args.get("is_active")
+        customers = db.session.scalars(db.select(Customer)).all()
+        result = customers_schema.dump(customers)
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
-        # Start with base query
-        query = Member.query
 
-        # Apply filters
-        if role_filter:
-            if role_filter not in ["member", "admin", "manager"]:
-                return (
-                    jsonify(
-                        {
-                            "error": "Invalid role",
-                            "message": "role must be one of: member, admin, manager",
-                        }
-                    ),
-                    400,
-                )
-            query = query.filter(Member.role == role_filter)
+@members_bp.route("/", methods=["POST"])
+@limiter.limit("50 per minute")
+def create_member():
+    """Create a new member"""
+    try:
+        data = request.get_json()
 
-        if is_active_filter is not None:
-            if is_active_filter.lower() == "true":
-                query = query.filter(Member.is_active)
-            elif is_active_filter.lower() == "false":
-                query = query.filter(~Member.is_active)
-            else:
-                return (
-                    jsonify(
-                        {
-                            "error": "Invalid is_active value",
-                            "message": 'is_active must be "true" or "false"',
-                        }
-                    ),
-                    400,
-                )
+        required_fields = ["first_name", "last_name", "email", "password"]
+        for field in required_fields:
+            if field not in data:
+                return jsonify({"error": f"Missing required field: {field}"}), 400
 
-        # Execute query
-        members = query.all()
+        if not validate_email(data["email"]):
+            return jsonify({"error": "Invalid email format"}), 400
 
-        response_data = {
-            "members": members_response_schema.dump(members),
-            "total_count": len(members),
-        }
+        existing_customer = db.session.scalar(
+            db.select(Customer).where(Customer.email == data["email"])
+        )
+        if existing_customer:
+            return jsonify({"error": "Email already exists"}), 400
 
-        # Add filter information to response
-        if role_filter:
-            response_data["filtered_by_role"] = role_filter
-        if is_active_filter is not None:
-            response_data["filtered_by_active_status"] = (
-                is_active_filter.lower() == "true"
-            )
+        customer = Customer(
+            first_name=data["first_name"],
+            last_name=data["last_name"],
+            email=data["email"],
+            phone_number=data.get("phone_number"),
+            address=data.get("address"),
+        )
+        customer.set_password(data["password"])
 
-        return jsonify(response_data), 200
+        db.session.add(customer)
+        db.session.commit()
+
+        return jsonify(customer_schema.dump(customer)), 201
 
     except Exception as e:
-        return jsonify({"error": "Failed to retrieve members", "message": str(e)}), 500
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
 
 
 @members_bp.route("/<int:member_id>", methods=["GET"])
+@limiter.limit("100 per minute")
 def get_member(member_id):
-    """Get a single member by ID."""
+    """Get a specific member"""
     try:
-        member = db.session.get(Member, member_id)
-
-        if not member:
+        customer = db.session.get(Customer, member_id)
+        if not customer:
             return jsonify({"error": "Member not found"}), 404
-
-        return jsonify({"member": member_response_schema.dump(member)}), 200
-
+        return jsonify(customer_schema.dump(customer)), 200
     except Exception as e:
-        return jsonify({"error": "Failed to retrieve member", "message": str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
 
 @members_bp.route("/<int:member_id>", methods=["PUT"])
+@limiter.limit("50 per minute")
+@jwt_required()
 def update_member(member_id):
-    """Update a member by ID."""
+    """Update a member"""
     try:
-        member = db.session.get(Member, member_id)
+        current_customer_id = get_jwt_identity()
+        current_customer = db.session.get(Customer, current_customer_id)
 
-        if not member:
+        if current_customer.id != member_id:
+            return jsonify({"error": "Unauthorized access"}), 403
+
+        customer = db.session.get(Customer, member_id)
+        if not customer:
             return jsonify({"error": "Member not found"}), 404
 
-        json_data = request.get_json()
-        if not json_data:
-            return jsonify({"error": "No input data provided"}), 400
+        data = request.get_json()
 
-        # Validate and load the data
-        member_data = member_update_schema.load(json_data)
-
-        # Check if email is being changed and already exists
-        if "email" in member_data and member_data["email"] != member.email:
-            existing_member = Member.query.filter_by(email=member_data["email"]).first()
-            if existing_member:
-                return (
-                    jsonify({"error": "Email already associated with another member"}),
-                    400,
-                )
-
-        # Update member attributes
-        for key, value in member_data.items():
-            if key == "password":
-                member.set_password(value)
-            else:
-                setattr(member, key, value)
+        if "first_name" in data:
+            customer.first_name = data["first_name"]
+        if "last_name" in data:
+            customer.last_name = data["last_name"]
+        if "email" in data:
+            if not validate_email(data["email"]):
+                return jsonify({"error": "Invalid email format"}), 400
+            customer.email = data["email"]
+        if "phone_number" in data:
+            customer.phone_number = data["phone_number"]
+        if "address" in data:
+            customer.address = data["address"]
 
         db.session.commit()
+        return jsonify(customer_schema.dump(customer)), 200
 
-        # Clear the cached members list since we updated a member
-        cache.delete("all_members")
-
-        return (
-            jsonify(
-                {
-                    "message": "Member updated successfully",
-                    "member": member_response_schema.dump(member),
-                }
-            ),
-            200,
-        )
-
-    except ValidationError as err:
-        return jsonify({"error": "Validation failed", "details": err.messages}), 400
     except Exception as e:
         db.session.rollback()
-        return jsonify({"error": "Failed to update member", "message": str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
 
 @members_bp.route("/<int:member_id>", methods=["DELETE"])
+@limiter.limit("50 per minute")
+@jwt_required()
 def delete_member(member_id):
-    """Delete a member by ID."""
+    """Delete a member"""
     try:
-        member = db.session.get(Member, member_id)
+        current_customer_id = get_jwt_identity()
+        current_customer = db.session.get(Customer, current_customer_id)
 
-        if not member:
+        if current_customer.id != member_id:
+            return jsonify({"error": "Unauthorized access"}), 403
+
+        customer = db.session.get(Customer, member_id)
+        if not customer:
             return jsonify({"error": "Member not found"}), 404
 
-        # Store member info for response
-        member_info = {
-            "id": member.id,
-            "name": f"{member.first_name} {member.last_name}",
-            "email": member.email,
-        }
-
-        db.session.delete(member)
+        db.session.delete(customer)
         db.session.commit()
 
-        # Clear the cached members list since we deleted a member
-        cache.delete("all_members")
-
-        return (
-            jsonify(
-                {
-                    "message": "Member deleted successfully",
-                    "deleted_member": member_info,
-                }
-            ),
-            200,
-        )
+        return jsonify({"message": "Member deleted successfully"}), 200
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({"error": "Failed to delete member", "message": str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
 
-@members_bp.route("/roles", methods=["GET"])
-def get_member_roles():
-    """Get available member roles."""
-    return (
-        jsonify(
-            {
-                "roles": ["member", "admin", "manager"],
-                "descriptions": {
-                    "member": "Standard member with basic access",
-                    "admin": "Administrator with full system access",
-                    "manager": "Manager with elevated permissions",
-                },
-            }
-        ),
-        200,
-    )
-
-
-@members_bp.route("/by-role/<role>", methods=["GET"])
-def get_members_by_role(role):
-    """Get all members with a specific role."""
+@members_bp.route("/login", methods=["POST"])
+@limiter.limit("50 per minute")
+def member_login():
+    """Member login"""
     try:
-        if role not in ["member", "admin", "manager"]:
-            return (
-                jsonify(
-                    {
-                        "error": "Invalid role",
-                        "message": "role must be one of: member, admin, manager",
-                    }
-                ),
-                400,
-            )
+        data = request.get_json()
 
-        members = Member.query.filter_by(role=role).all()
+        if not data or "email" not in data or "password" not in data:
+            return jsonify({"error": "Email and password required"}), 400
+
+        customer = db.session.scalar(
+            db.select(Customer).where(Customer.email == data["email"])
+        )
+
+        if not customer or not customer.check_password(data["password"]):
+            return jsonify({"error": "Invalid credentials"}), 401
+
+        token = create_access_token(identity=customer.id)
 
         return (
             jsonify(
                 {
-                    "role": role,
-                    "members": members_response_schema.dump(members),
-                    "count": len(members),
+                    "message": "Login successful",
+                    "member": customer_schema.dump(customer),
+                    "token": token,
                 }
             ),
             200,
         )
 
     except Exception as e:
-        return (
-            jsonify({"error": "Failed to retrieve members by role", "message": str(e)}),
-            500,
-        )
+        return jsonify({"error": str(e)}), 500

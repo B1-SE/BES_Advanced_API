@@ -1,189 +1,150 @@
-# app/blueprints/inventory/routes.py
+"""
+Inventory routes for the mechanic shop application.
+"""
 from flask import request, jsonify
-from marshmallow import ValidationError
-from app.models import Inventory
-from app.extensions import db, cache
-from app.utils.util import token_required
+from app.extensions import db, limiter
+from app.models.inventory import InventoryItem
+from .schemas import inventory_item_schema, inventory_items_schema
+from decimal import Decimal, InvalidOperation
 from . import inventory_bp
-from .schemas import InventorySchema
-
-inventory_schema = InventorySchema()
-inventory_list_schema = InventorySchema(many=True)
 
 
 @inventory_bp.route("/", methods=["GET"])
-@cache.cached(timeout=600, key_prefix="all_inventory")  # Cache for 10 minutes
+@limiter.limit("100 per minute")
 def get_all_inventory():
-    """Get all inventory items with optional pagination, sorting, and filtering"""
-    page = request.args.get("page", 1, type=int)
-    per_page = request.args.get("per_page", 10, type=int)
-
-    # Advanced query features
-    query = Inventory.query
-
-    # Filtering by name
-    name_filter = request.args.get("name")
-    if name_filter:
-        query = query.filter(Inventory.name.ilike(f"%{name_filter}%"))
-
-    # Filtering by price range
-    min_price = request.args.get("min_price", type=float)
-    max_price = request.args.get("max_price", type=float)
-    if min_price is not None:
-        query = query.filter(Inventory.price >= min_price)
-    if max_price is not None:
-        query = query.filter(Inventory.price <= max_price)
-
-    # Sorting
-    sort_by = request.args.get("sort_by", "id")
-    sort_order = request.args.get("sort_order", "asc")
-
-    if hasattr(Inventory, sort_by):
-        if sort_order.lower() == "desc":
-            query = query.order_by(getattr(Inventory, sort_by).desc())
-        else:
-            query = query.order_by(getattr(Inventory, sort_by))
-
-    # Pagination
-    if per_page > 100:  # Limit max per_page
-        per_page = 100
-
-    inventory_paginated = query.paginate(page=page, per_page=per_page, error_out=False)
-
-    return jsonify(
-        {
-            "inventory": inventory_list_schema.dump(inventory_paginated.items),
-            "pagination": {
-                "total": inventory_paginated.total,
-                "pages": inventory_paginated.pages,
-                "current_page": inventory_paginated.page,
-                "per_page": inventory_paginated.per_page,
-                "has_next": inventory_paginated.has_next,
-                "has_prev": inventory_paginated.has_prev,
-            },
-        }
-    )
+    """Get all inventory items"""
+    try:
+        items = db.session.scalars(db.select(InventoryItem)).all()
+        result = inventory_items_schema.dump(items)
+        return jsonify({"inventory": result, "count": len(result)}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
-@inventory_bp.route("/<int:id>", methods=["GET"])
-def get_inventory_by_id(id):
-    """Get a specific inventory item by ID"""
-    inventory_item = Inventory.query.get_or_404(id)
-    return jsonify(inventory_schema.dump(inventory_item))
+@inventory_bp.route("/<int:item_id>", methods=["GET"])
+@limiter.limit("100 per minute")
+def get_inventory_item(item_id):
+    """Get a specific inventory item"""
+    try:
+        item = db.session.get(InventoryItem, item_id)
+        if not item:
+            return jsonify({"error": "Inventory item not found"}), 404
+        return jsonify(inventory_item_schema.dump(item)), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @inventory_bp.route("/", methods=["POST"])
-@token_required
-def create_inventory(current_user):
+@limiter.limit("50 per minute")
+def create_inventory_item():
     """Create a new inventory item"""
     try:
-        inventory_data = inventory_schema.load(request.json)
-    except ValidationError as err:
-        return jsonify({"errors": err.messages}), 400
+        data = request.get_json()
 
-    # Check if inventory item with same name already exists
-    existing_item = Inventory.query.filter_by(name=inventory_data["name"]).first()
-    if existing_item:
-        return jsonify({"error": "Inventory item with this name already exists"}), 409
+        # Validate required fields
+        required_fields = ["name", "quantity", "price"]
+        for field in required_fields:
+            if field not in data:
+                return jsonify({"error": f"Missing required field: {field}"}), 400
 
-    new_inventory = Inventory(
-        name=inventory_data["name"], price=inventory_data["price"]
-    )
+        # Validate numeric fields
+        try:
+            quantity = int(data["quantity"])
+            if quantity < 0:
+                return jsonify({"error": "Quantity must be non-negative"}), 400
+        except (ValueError, TypeError):
+            return jsonify({"error": "Invalid quantity format"}), 400
 
-    db.session.add(new_inventory)
-    db.session.commit()
+        try:
+            price = Decimal(str(data["price"]))
+            if price < 0:
+                return jsonify({"error": "Price must be non-negative"}), 400
+        except (InvalidOperation, ValueError, TypeError):
+            return jsonify({"error": "Invalid price format"}), 400
 
-    # Clear cache after creating new inventory
-    cache.delete("all_inventory")
+        # Create new inventory item
+        item = InventoryItem(
+            name=data["name"],
+            description=data.get("description"),
+            quantity=quantity,
+            price=price,
+            supplier=data.get("supplier"),
+            category=data.get("category"),
+            reorder_level=data.get("reorder_level", 0),
+        )
 
-    return jsonify(inventory_schema.dump(new_inventory)), 201
-
-
-@inventory_bp.route("/<int:id>", methods=["PUT"])
-@token_required
-def update_inventory(current_user, id):
-    """Update an existing inventory item"""
-    inventory_item = Inventory.query.get_or_404(id)
-
-    try:
-        inventory_data = inventory_schema.load(request.json, partial=True)
-    except ValidationError as err:
-        return jsonify({"errors": err.messages}), 400
-
-    # Check if updating name would create duplicate
-    if "name" in inventory_data and inventory_data["name"] != inventory_item.name:
-        existing_item = Inventory.query.filter_by(name=inventory_data["name"]).first()
-        if existing_item:
-            return (
-                jsonify({"error": "Inventory item with this name already exists"}),
-                409,
-            )
-
-    # Update fields
-    if "name" in inventory_data:
-        inventory_item.name = inventory_data["name"]
-    if "price" in inventory_data:
-        inventory_item.price = inventory_data["price"]
-
-    db.session.commit()
-
-    # Clear cache after updating inventory
-    cache.delete("all_inventory")
-
-    return jsonify(inventory_schema.dump(inventory_item))
-
-
-@inventory_bp.route("/<int:id>", methods=["DELETE"])
-@token_required
-def delete_inventory(current_user, id):
-    """Delete an inventory item"""
-    inventory_item = Inventory.query.get_or_404(id)
-
-    db.session.delete(inventory_item)
-    db.session.commit()
-
-    # Clear cache after deleting inventory
-    cache.delete("all_inventory")
-
-    return jsonify({"message": "Inventory item deleted successfully"}), 200
-
-
-@inventory_bp.route("/bulk", methods=["POST"])
-@token_required
-def create_bulk_inventory(current_user):
-    """Create multiple inventory items at once"""
-    try:
-        inventory_list = inventory_list_schema.load(request.json)
-    except ValidationError as err:
-        return jsonify({"errors": err.messages}), 400
-
-    created_items = []
-    errors = []
-
-    for item_data in inventory_list:
-        # Check for duplicates
-        existing_item = Inventory.query.filter_by(name=item_data["name"]).first()
-        if existing_item:
-            errors.append(f'Inventory item "{item_data["name"]}" already exists')
-            continue
-
-        new_inventory = Inventory(name=item_data["name"], price=item_data["price"])
-
-        db.session.add(new_inventory)
-        created_items.append(new_inventory)
-
-    if created_items:
+        # Save to database
+        db.session.add(item)
         db.session.commit()
-        # Clear cache after bulk creation
-        cache.delete("all_inventory")
 
-    response = {
-        "created": inventory_list_schema.dump(created_items),
-        "created_count": len(created_items),
-    }
+        return jsonify(inventory_item_schema.dump(item)), 201
 
-    if errors:
-        response["errors"] = errors
-        response["error_count"] = len(errors)
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
 
-    return jsonify(response), 201 if created_items else 400
+
+@inventory_bp.route("/<int:item_id>", methods=["PUT"])
+@limiter.limit("50 per minute")
+def update_inventory_item(item_id):
+    """Update an inventory item"""
+    try:
+        item = db.session.get(InventoryItem, item_id)
+        if not item:
+            return jsonify({"error": "Inventory item not found"}), 404
+
+        data = request.get_json()
+
+        # Update fields with validation
+        if "name" in data:
+            item.name = data["name"]
+        if "description" in data:
+            item.description = data["description"]
+        if "quantity" in data:
+            try:
+                quantity = int(data["quantity"])
+                if quantity < 0:
+                    return jsonify({"error": "Quantity must be non-negative"}), 400
+                item.quantity = quantity
+            except (ValueError, TypeError):
+                return jsonify({"error": "Invalid quantity format"}), 400
+        if "price" in data:
+            try:
+                price = Decimal(str(data["price"]))
+                if price < 0:
+                    return jsonify({"error": "Price must be non-negative"}), 400
+                item.price = price
+            except (InvalidOperation, ValueError, TypeError):
+                return jsonify({"error": "Invalid price format"}), 400
+        if "supplier" in data:
+            item.supplier = data["supplier"]
+        if "category" in data:
+            item.category = data["category"]
+        if "reorder_level" in data:
+            item.reorder_level = data["reorder_level"]
+
+        db.session.commit()
+        return jsonify(inventory_item_schema.dump(item)), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+
+@inventory_bp.route("/<int:item_id>", methods=["DELETE"])
+@limiter.limit("50 per minute")
+def delete_inventory_item(item_id):
+    """Delete an inventory item"""
+    try:
+        item = db.session.get(InventoryItem, item_id)
+        if not item:
+            return jsonify({"error": "Inventory item not found"}), 404
+
+        db.session.delete(item)
+        db.session.commit()
+
+        return jsonify({"message": "Inventory item deleted successfully"}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
