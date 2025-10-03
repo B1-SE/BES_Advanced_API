@@ -1,19 +1,14 @@
 """
 Mechanic routes for the mechanic shop API.
 """
-
-from flask import Blueprint, jsonify, request
+from flask import jsonify, request
 from app.extensions import db, cache, limiter
 from app.models.mechanic import Mechanic
 from app.blueprints.mechanics.schemas import mechanic_schema, mechanics_schema
-
-try:
-    from marshmallow import ValidationError
-except ImportError:
-    ValidationError = Exception  # fallback to generic Exception if marshmallow is missing
+from marshmallow import ValidationError
+from . import mechanics_bp
 
 # Create mechanic blueprint
-mechanics_bp = Blueprint("mechanics", __name__)
 
 
 @mechanics_bp.route("/", methods=["POST"])

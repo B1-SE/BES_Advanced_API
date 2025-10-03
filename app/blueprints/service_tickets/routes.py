@@ -1,7 +1,7 @@
 """
 Service Ticket routes for the mechanic shop API.
 """
-from flask import Blueprint, jsonify, request
+from flask import jsonify, request
 from marshmallow import ValidationError
 from app.extensions import db, limiter
 from app.models.service_ticket import ServiceTicket
@@ -12,9 +12,7 @@ from app.blueprints.service_tickets.schemas import (
     service_ticket_schema,
     service_tickets_schema,
 )
-
-# Create service tickets blueprint
-service_tickets_bp = Blueprint("service_tickets", __name__)
+from . import service_tickets_bp
 
 
 @service_tickets_bp.route("/", methods=["POST"])

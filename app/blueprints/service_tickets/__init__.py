@@ -1,5 +1,10 @@
 """
 Service Tickets blueprint initialization.
 """
+from flask import Blueprint
 
-from .routes import service_tickets_bp as service_tickets_bp  # noqa: F401
+service_tickets_bp = Blueprint(
+    "service_tickets", __name__, url_prefix="/service-tickets"
+)
+
+from . import routes  # noqa: F401, E402

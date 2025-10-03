@@ -1,144 +1,125 @@
+"""
+Calculations routes for the mechanic shop application.
+"""
 from flask import request, jsonify
+from app.extensions import limiter
 from . import calculations_bp
-from datetime import datetime, timezone
 
 
 @calculations_bp.route("/add", methods=["POST"])
+@limiter.limit("100 per minute")
 def add_numbers():
-    """Add two or more numbers"""
+    """Add a list of numbers"""
     try:
         data = request.get_json()
 
+        # Validate input
         if not data or "numbers" not in data:
-            return jsonify({"error": 'Missing required field "numbers"'}), 400
+            return jsonify({"error": "Missing numbers field"}), 400
 
         numbers = data["numbers"]
 
-        if not isinstance(numbers, list) or len(numbers) < 2:
-            return (
-                jsonify(
-                    {
-                        "error": 'Field "numbers" must be an array with at least 2 numbers'
-                    }
-                ),
-                400,
-            )
+        # Validate numbers list
+        if not isinstance(numbers, list):
+            return jsonify({"error": "Numbers must be a list"}), 400
 
-        # Validate each number
-        for i, num in enumerate(numbers):
+        if len(numbers) < 2:
+            return jsonify({"error": "At least 2 numbers required"}), 400
+
+        # Validate all items are numbers
+        for num in numbers:
             if not isinstance(num, (int, float)):
-                return (
-                    jsonify({"error": f"Number at index {i} must be a valid number"}),
-                    400,
-                )
+                return jsonify({"error": "All items must be numbers"}), 400
 
+        # Calculate sum
         result = sum(numbers)
 
         return (
             jsonify(
                 {
-                    "operation": "addition",
-                    "operands": numbers,
                     "result": result,
-                    "calculation": " + ".join(map(str, numbers)) + f" = {result}",
-                    "timestamp": datetime.now(timezone.utc)
-                    .isoformat()
-                    .replace("+00:00", "Z"),
+                    "operation": "addition",
+                    "operands": numbers,  # Changed from 'numbers' to 'operands'
                 }
             ),
             200,
         )
 
     except Exception as e:
-        return jsonify({"error": "Internal server error", "details": str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
 
 @calculations_bp.route("/subtract", methods=["POST"])
+@limiter.limit("100 per minute")
 def subtract_numbers():
-    """Subtract numbers (first - second - third...)"""
+    """Subtract a list of numbers (first - second - third - ...)"""
     try:
         data = request.get_json()
 
+        # Validate input
         if not data or "numbers" not in data:
-            return jsonify({"error": 'Missing required field "numbers"'}), 400
+            return jsonify({"error": "Missing numbers field"}), 400
 
         numbers = data["numbers"]
 
-        if not isinstance(numbers, list) or len(numbers) < 2:
-            return (
-                jsonify(
-                    {
-                        "error": 'Field "numbers" must be an array with at least 2 numbers'
-                    }
-                ),
-                400,
-            )
+        # Validate numbers list
+        if not isinstance(numbers, list):
+            return jsonify({"error": "Numbers must be a list"}), 400
 
-        # Validate each number
-        for i, num in enumerate(numbers):
+        if len(numbers) < 2:
+            return jsonify({"error": "At least 2 numbers required"}), 400
+
+        # Validate all items are numbers
+        for num in numbers:
             if not isinstance(num, (int, float)):
-                return (
-                    jsonify({"error": f"Number at index {i} must be a valid number"}),
-                    400,
-                )
+                return jsonify({"error": "All items must be numbers"}), 400
 
+        # Calculate difference (first - rest)
         result = numbers[0]
         for num in numbers[1:]:
             result -= num
 
-        calc_string = str(numbers[0])
-        for num in numbers[1:]:
-            calc_string += f" - {num}"
-        calc_string += f" = {result}"
-
         return (
             jsonify(
                 {
-                    "operation": "subtraction",
-                    "operands": numbers,
                     "result": result,
-                    "calculation": calc_string,
-                    "timestamp": datetime.now(timezone.utc)
-                    .isoformat()
-                    .replace("+00:00", "Z"),
+                    "operation": "subtraction",
+                    "operands": numbers,  # Changed from 'numbers' to 'operands'
                 }
             ),
             200,
         )
 
     except Exception as e:
-        return jsonify({"error": "Internal server error", "details": str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
 
 @calculations_bp.route("/multiply", methods=["POST"])
+@limiter.limit("100 per minute")
 def multiply_numbers():
-    """Multiply two or more numbers"""
+    """Multiply a list of numbers"""
     try:
         data = request.get_json()
 
+        # Validate input
         if not data or "numbers" not in data:
-            return jsonify({"error": 'Missing required field "numbers"'}), 400
+            return jsonify({"error": "Missing numbers field"}), 400
 
         numbers = data["numbers"]
 
-        if not isinstance(numbers, list) or len(numbers) < 2:
-            return (
-                jsonify(
-                    {
-                        "error": 'Field "numbers" must be an array with at least 2 numbers'
-                    }
-                ),
-                400,
-            )
+        # Validate numbers list
+        if not isinstance(numbers, list):
+            return jsonify({"error": "Numbers must be a list"}), 400
 
-        # Validate each number
-        for i, num in enumerate(numbers):
+        if len(numbers) < 2:
+            return jsonify({"error": "At least 2 numbers required"}), 400
+
+        # Validate all items are numbers
+        for num in numbers:
             if not isinstance(num, (int, float)):
-                return (
-                    jsonify({"error": f"Number at index {i} must be a valid number"}),
-                    400,
-                )
+                return jsonify({"error": "All items must be numbers"}), 400
 
+        # Calculate product
         result = 1
         for num in numbers:
             result *= num
@@ -146,98 +127,83 @@ def multiply_numbers():
         return (
             jsonify(
                 {
-                    "operation": "multiplication",
-                    "operands": numbers,
                     "result": result,
-                    "calculation": " × ".join(map(str, numbers)) + f" = {result}",
-                    "timestamp": datetime.now(timezone.utc)
-                    .isoformat()
-                    .replace("+00:00", "Z"),
+                    "operation": "multiplication",
+                    "operands": numbers,  # Changed from 'numbers' to 'operands'
                 }
             ),
             200,
         )
 
     except Exception as e:
-        return jsonify({"error": "Internal server error", "details": str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
 
 @calculations_bp.route("/divide", methods=["POST"])
+@limiter.limit("100 per minute")
 def divide_numbers():
-    """Divide numbers (first ÷ second ÷ third...)"""
+    """Divide a list of numbers (first / second / third / ...)"""
     try:
         data = request.get_json()
 
+        # Validate input
         if not data or "numbers" not in data:
-            return jsonify({"error": 'Missing required field "numbers"'}), 400
+            return jsonify({"error": "Missing numbers field"}), 400
 
         numbers = data["numbers"]
 
-        if not isinstance(numbers, list) or len(numbers) < 2:
-            return (
-                jsonify(
-                    {
-                        "error": 'Field "numbers" must be an array with at least 2 numbers'
-                    }
-                ),
-                400,
-            )
+        # Validate numbers list
+        if not isinstance(numbers, list):
+            return jsonify({"error": "Numbers must be a list"}), 400
 
-        # Validate each number
-        for i, num in enumerate(numbers):
+        if len(numbers) < 2:
+            return jsonify({"error": "At least 2 numbers required"}), 400
+
+        # Validate all items are numbers
+        for num in numbers:
             if not isinstance(num, (int, float)):
-                return (
-                    jsonify({"error": f"Number at index {i} must be a valid number"}),
-                    400,
-                )
+                return jsonify({"error": "All items must be numbers"}), 400
 
         # Check for division by zero
-        for i, num in enumerate(numbers[1:], 1):
+        for num in numbers[1:]:
             if num == 0:
-                return jsonify({"error": f"Division by zero at index {i}"}), 400
+                return jsonify({"error": "Division by zero"}), 400
 
+        # Calculate division (first / rest)
         result = numbers[0]
         for num in numbers[1:]:
             result /= num
 
-        calc_string = str(numbers[0])
-        for num in numbers[1:]:
-            calc_string += f" ÷ {num}"
-        calc_string += f" = {result}"
-
         return (
             jsonify(
                 {
-                    "operation": "division",
-                    "operands": numbers,
                     "result": result,
-                    "calculation": calc_string,
-                    "timestamp": datetime.now(timezone.utc)
-                    .isoformat()
-                    .replace("+00:00", "Z"),
+                    "operation": "division",
+                    "operands": numbers,  # Changed from 'numbers' to 'operands'
                 }
             ),
             200,
         )
 
     except Exception as e:
-        return jsonify({"error": "Internal server error", "details": str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
 
 @calculations_bp.route("/health", methods=["GET"])
-def calculations_health():
-    """Health check for calculations service"""
+def health_check():
+    """Health check endpoint for calculations service"""
     return (
         jsonify(
             {
-                "service": "calculations",
                 "status": "healthy",
+                "service": "calculations",
                 "endpoints": [
-                    "POST /calculations/add",
-                    "POST /calculations/subtract",
-                    "POST /calculations/multiply",
-                    "POST /calculations/divide",
-                ],
+                    "/add",
+                    "/subtract",
+                    "/multiply",
+                    "/divide",
+                ],  # Added this field
+                "available_operations": ["add", "subtract", "multiply", "divide"],
             }
         ),
         200,

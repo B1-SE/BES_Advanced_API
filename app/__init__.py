@@ -158,7 +158,7 @@ def register_blueprints(app):
         ("app.blueprints.mechanics.routes", "mechanics_bp", "/mechanics"),
         ("app.blueprints.service_tickets.routes", "service_tickets_bp", "/service-tickets"),
         ("app.blueprints.customers", "customers_bp", None), # url_prefix is in the blueprint
-        ("app.routes.calculations", "calculations_bp", None),
+        ("app.blueprints.calculations", "calculations_bp", None),
         ("app.blueprints.inventory", "inventory_bp", None),
     ]
 
