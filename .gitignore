@@ -1,1 +1,17 @@
 .Trash/
+
+# Environment variables
+.env
+
+# Virtual Environment
+venv/
+
+# Instance folder (contains database, etc.)
+instance/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# macOS folder attributes
+.DS_Store

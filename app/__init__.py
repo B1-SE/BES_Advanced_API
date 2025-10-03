@@ -37,7 +37,8 @@ def create_app(config_class=None):
 
     # For production, ensure critical environment variables are set.
     # This check is now done at app creation time, not import time.
-    if app.config["ENV"] == "production":
+    if not app.config.get("DEBUG", False) and not app.config.get("TESTING", False):
+        # This is "production" mode as per Flask's new conventions
         if not app.config.get("SQLALCHEMY_DATABASE_URI"):
             raise ValueError("DATABASE_URL is not set for the production environment.")
         # You could add a similar check for SECRET_KEY here as well.
@@ -154,10 +155,10 @@ def register_blueprints(app):
     """Register application blueprints"""
 
     blueprints_to_register = [
-        ("app.routes.mechanics", "mechanics_bp", "/mechanics"),
+        ("app.blueprints.mechanics.routes", "mechanics_bp", "/mechanics"),
         ("app.blueprints.service_tickets.routes", "service_tickets_bp", "/service-tickets"),
+        ("app.blueprints.customers", "customers_bp", None), # url_prefix is in the blueprint
         ("app.routes.calculations", "calculations_bp", None),
-        ("app.routes.routes", "customers_bp", "/customers"),
         ("app.routes.inventory", "inventory_bp", "/inventory"),
         ("app.routes.members", "members_bp", "/members"),
     ]

@@ -38,6 +38,7 @@ class DevelopmentConfig(Config):
         os.environ.get("DATABASE_URL")
         or f"sqlite:///{BASE_DIR}/instance/mechanic_shop_dev.db"
     )
+    SERVER_NAME = os.environ.get("SERVER_NAME") or "localhost:5000"
 
 
 class TestingConfig(Config):
@@ -56,10 +57,7 @@ class ProductionConfig(Config):
     # For production, the database URL must be set via an environment variable.
     # Render.com, for example, provides the DATABASE_URL.
     SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL")
-
-    # Fail fast if the production database URL is not configured.
-    if not SQLALCHEMY_DATABASE_URI:
-        raise ValueError("DATABASE_URL is not set for the production environment.")
+    SERVER_NAME = os.environ.get("SERVER_NAME")
 
 
 # Configuration dictionary
