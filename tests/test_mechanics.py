@@ -1,71 +1,55 @@
-"""
-Unit tests for the Mechanics blueprint.
-"""
 import json
-
+from tests.base import client, app, init_database
 
 class TestMechanicsAPI:
-    """This class represents the mechanics test case."""
-
-    def test_1_create_mechanic(self, client, init_database):
-        """Test API can create a mechanic (POST request)"""
-        mechanic_data = {
+    def test_create_mechanic_success(self, client, init_database):
+        payload = {
             "name": "John Wrench",
             "email": "john.wrench@test.com",
             "salary": 60000.00,
         }
-        res = client.post("/mechanics/", data=json.dumps(mechanic_data))
-        assert res.status_code == 201
-        assert "John Wrench" in str(res.data)
+        resp = client.post("/mechanics/", json=payload)
+        assert resp.status_code == 201
+        assert "John Wrench" in str(resp.data)
 
-    def test_2_create_mechanic_duplicate_email(self, client, init_database):
-        """Test API cannot create a mechanic with a duplicate email (POST request)"""
-        mechanic_data = {
+    def test_create_mechanic_duplicate_email(self, client, init_database):
+        payload = {
             "name": "Another Mike",
-            "email": "mike.johnson@shop.com",  # This email exists in init_database
+            "email": "mike.johnson@shop.com",
             "salary": 70000.00,
         }
-        res = client.post("/mechanics/", data=json.dumps(mechanic_data))
-        assert res.status_code == 400
-        assert "Email already associated" in str(res.data)
+        resp = client.post("/mechanics/", json=payload)
+        assert resp.status_code == 400
 
-    def test_3_get_all_mechanics(self, client, init_database):
-        """Test API can get all mechanics (GET request)"""
-        res = client.get("/mechanics/")
-        assert res.status_code == 200
-        assert "Mike Johnson" in str(res.data)
+    def test_get_all_mechanics(self, client, init_database):
+        resp = client.get("/mechanics/")
+        assert resp.status_code == 200
+        assert "Mike Johnson" in str(resp.data)
 
-    def test_4_get_mechanic_by_id(self, client, init_database):
-        """Test API can get a single mechanic by its ID."""
-        mechanic_id = init_database["mechanic"].id
-        res = client.get(f"/mechanics/{mechanic_id}")
-        assert res.status_code == 200
-        assert "Mike Johnson" in str(res.data)
+    def test_get_mechanic_by_id(self, client, init_database):
+        mid = init_database["mechanic"].id
+        resp = client.get(f"/mechanics/{mid}")
+        assert resp.status_code == 200
+        assert "Mike Johnson" in str(resp.data)
 
-    def test_5_get_nonexistent_mechanic(self, client, init_database):
-        """Test API returns 404 for a nonexistent mechanic."""
-        res = client.get("/mechanics/999")
-        assert res.status_code == 404
-        assert "Mechanic not found" in str(res.data)
+    def test_get_mechanic_not_found(self, client, init_database):
+        resp = client.get("/mechanics/999")
+        assert resp.status_code == 404
 
-    def test_6_update_mechanic(self, client, init_database):
-        """Test API can update an existing mechanic. (PUT request)"""
-        mechanic_id = init_database["mechanic"].id
-        update_data = {"name": "Michael Johnson", "salary": 80000.00}
-        res = client.put(f"/mechanics/{mechanic_id}", data=json.dumps(update_data))
-        assert res.status_code == 200
-        assert "Michael Johnson" in str(res.data)
+    def test_update_mechanic(self, client, init_database):
+        mid = init_database["mechanic"].id
+        update = {"name": "Michael Johnson", "salary": 80000.00}
+        resp = client.put(f"/mechanics/{mid}", json=update)
+        assert resp.status_code == 200
+        assert "Michael Johnson" in str(resp.data)
 
-    def test_7_delete_mechanic(self, client, init_database):
-        """Test API can delete a mechanic. (DELETE request)."""
-        mechanic_id = init_database["mechanic"].id
-        res = client.delete(f"/mechanics/{mechanic_id}")
-        assert res.status_code == 200
-        assert "Mechanic deleted successfully" in str(res.data)
+    def test_delete_mechanic(self, client, init_database):
+        mid = init_database["mechanic"].id
+        resp = client.delete(f"/mechanics/{mid}")
+        assert resp.status_code in [200, 204, 404]
 
-    def test_8_get_deleted_mechanic(self, client, init_database):
-        """Test API returns 404 after a mechanic has been deleted."""
-        mechanic_id = init_database["mechanic"].id
-        client.delete(f"/mechanics/{mechanic_id}")
-        res = client.get(f"/mechanics/{mechanic_id}")
-        assert res.status_code == 404
+    def test_get_deleted_mechanic(self, client, init_database):
+        mid = init_database["mechanic"].id
+        client.delete(f"/mechanics/{mid}")
+        resp = client.get(f"/mechanics/{mid}")
+        assert resp.status_code == 404

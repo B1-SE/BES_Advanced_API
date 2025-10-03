@@ -7,7 +7,7 @@ from app import create_app
 from app.extensions import db
 from app.models.customer import Customer
 from app.models.mechanic import Mechanic
-from app.models.inventory import Inventory
+from app.models.inventory import InventoryItem as Inventory
 from config import config
 
 
