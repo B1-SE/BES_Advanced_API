@@ -15,11 +15,49 @@ from . import mechanics_bp
 @limiter.limit("10 per minute")  # Rate limit mechanic creation
 def create_mechanic():
     """
-    Create a new mechanic.
-
-    Rate Limited: 10 requests per minute per IP address
-    WHY: Prevents spam mechanic account creation and protects against
-    automated attacks that could flood the system with fake mechanics.
+    Create a new mechanic
+    ---
+    tags:
+      - Mechanics
+    summary: Add a new mechanic to the database
+    description: >
+      Creates a new mechanic with the provided details. The email must be unique.
+      This endpoint is rate-limited to 10 requests per minute per IP to prevent spam.
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          id: MechanicInput
+          type: object
+          required:
+            - name
+            - email
+            - salary
+          properties:
+            name:
+              type: string
+              description: The full name of the mechanic.
+              example: "John Wrench"
+            email:
+              type: string
+              format: email
+              description: The unique email address for the mechanic.
+              example: "john.wrench@shop.com"
+            phone:
+              type: string
+              description: The mechanic's phone number.
+              example: "555-123-4567"
+            salary:
+              type: number
+              format: float
+              description: The mechanic's salary.
+              example: 65000.50
+    responses:
+      201:
+        description: Mechanic created successfully.
+      400:
+        description: Bad request due to invalid input or duplicate email.
     """
     try:
         json_data = request.get_json()
@@ -27,11 +65,11 @@ def create_mechanic():
             return jsonify({"message": "No input data provided"}), 400
 
         # Validate and load the data
-        mechanic_data = mechanic_schema.load(json_data)
+        new_mechanic = mechanic_schema.load(json_data)
 
         # Check if email already exists
         existing_mechanic = Mechanic.query.filter_by(
-            email=mechanic_data["email"]
+            email=new_mechanic.email
         ).first()
         if existing_mechanic:
             return (
@@ -39,8 +77,6 @@ def create_mechanic():
                 400,
             )
 
-        # Create new mechanic from the dictionary
-        new_mechanic = Mechanic(**mechanic_data)
         db.session.add(new_mechanic)
         db.session.commit()
 

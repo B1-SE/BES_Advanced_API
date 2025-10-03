@@ -1,3 +1,0 @@
-"""
-Service tickets blueprint package.
-"""

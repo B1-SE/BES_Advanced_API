@@ -8,6 +8,7 @@ from datetime import datetime
 import os
 from pathlib import Path
 from dotenv import load_dotenv
+from flasgger import Flasgger
 
 from app.extensions import db, ma, cache, limiter, jwt, cors
 from config import config
@@ -19,6 +20,9 @@ def create_app(config_name="default"):
     """
     app = Flask(__name__)
     app.config.from_object(config[config_name])
+
+    # Initialize Flasgger for API documentation
+    Flasgger(app)
 
     # Initialize extensions
     db.init_app(app)

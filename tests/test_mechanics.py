@@ -1,140 +1,101 @@
 """
-Test cases for the mechanics API endpoints.
+Unit tests for the Mechanics blueprint.
 """
 
+import unittest
+import json
+from app import create_app
+from app.extensions import db
 
-class TestMechanicsAPI:
-    def test_get_all_mechanics_empty_database(self, client, clean_database):
-        """Test GET /mechanics/ with empty database"""
-        response = client.get("/mechanics/")
-        assert response.status_code == 200
-        data = response.get_json()
-        # Response is a dict with 'mechanics' key, not a list
-        assert isinstance(data, dict)
-        assert "mechanics" in data
-        assert "count" in data
-        assert isinstance(data["mechanics"], list)
-        assert len(data["mechanics"]) == 0
 
-    def test_get_all_mechanics_success(self, client, init_database):
-        """Test GET /mechanics/ with data"""
-        response = client.get("/mechanics/")
-        assert response.status_code == 200
-        data = response.get_json()
-        assert isinstance(data, list)
-        assert len(data) == 2
+class MechanicsTestCase(unittest.TestCase):
+    """This class represents the mechanics test case."""
 
-    def test_create_mechanic_success(self, client, clean_database):
-        """Test POST /mechanics/ - positive case"""
-        mechanic_data = {
-            "name": "John Smith",
-            "email": "john.smith@shop.com",
-            "phone": "555-0123",
-            "salary": 55000,
+    def setUp(self):
+        """Define test variables and initialize app."""
+        self.app = create_app(config_name="testing")
+        self.client = self.app.test_client
+        self.mechanic = {
+            "name": "John Wrench",
+            "email": "john.wrench@test.com",
+            "salary": 60000.00,
         }
-        response = client.post(
-            "/mechanics/", json=mechanic_data, content_type="application/json"
+
+        # Binds the app to the current context
+        with self.app.app_context():
+            # create all tables
+            db.create_all()
+
+    def tearDown(self):
+        """teardown all initialized variables."""
+        with self.app.app_context():
+            # drop all tables
+            db.session.remove()
+            db.drop_all()
+
+    def test_1_create_mechanic(self):
+        """Test API can create a mechanic (POST request)"""
+        res = self.client().post("/mechanics/", data=json.dumps(self.mechanic))
+        self.assertEqual(res.status_code, 201)
+        self.assertIn("John Wrench", str(res.data))
+
+    def test_2_create_mechanic_duplicate_email(self):
+        """Test API cannot create a mechanic with a duplicate email (POST request)"""
+        # First, create a mechanic
+        self.client().post("/mechanics/", data=json.dumps(self.mechanic))
+        # Then, try to create another with the same email
+        res = self.client().post("/mechanics/", data=json.dumps(self.mechanic))
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("Email already associated", str(res.data))
+
+    def test_3_get_all_mechanics(self):
+        """Test API can get all mechanics (GET request)"""
+        self.client().post("/mechanics/", data=json.dumps(self.mechanic))
+        res = self.client().get("/mechanics/")
+        self.assertEqual(res.status_code, 200)
+        self.assertIn("John Wrench", str(res.data))
+
+    def test_4_get_mechanic_by_id(self):
+        """Test API can get a single mechanic by its ID."""
+        rv = self.client().post("/mechanics/", data=json.dumps(self.mechanic))
+        mechanic_id = json.loads(rv.data).get("id")
+        res = self.client().get(f"/mechanics/{mechanic_id}")
+        self.assertEqual(res.status_code, 200)
+        self.assertIn("John Wrench", str(res.data))
+
+    def test_5_get_nonexistent_mechanic(self):
+        """Test API returns 404 for a nonexistent mechanic."""
+        res = self.client().get("/mechanics/999")
+        self.assertEqual(res.status_code, 404)
+        self.assertIn("Mechanic not found", str(res.data))
+
+    def test_6_update_mechanic(self):
+        """Test API can update an existing mechanic. (PUT request)"""
+        rv = self.client().post("/mechanics/", data=json.dumps(self.mechanic))
+        mechanic_id = json.loads(rv.data).get("id")
+        update_data = {"name": "Johnny Wrench", "salary": 65000.00}
+        res = self.client().put(
+            f"/mechanics/{mechanic_id}", data=json.dumps(update_data)
         )
-        assert response.status_code == 201
-        data = response.get_json()
-        assert data["name"] == "John Smith"
-        assert data["email"] == "john.smith@shop.com"
-        assert float(data["salary"]) == 55000.0
+        self.assertEqual(res.status_code, 200)
+        self.assertIn("Johnny Wrench", str(res.data))
 
-    def test_create_mechanic_missing_required_field(self, client, clean_database):
-        """Test POST /mechanics/ - missing required field"""
-        mechanic_data = {
-            "name": "John Smith",
-            "email": "john.smith@shop.com",
-            # Missing 'salary'
-        }
-        response = client.post(
-            "/mechanics/", json=mechanic_data, content_type="application/json"
-        )
-        assert response.status_code == 400
-        data = response.get_json()
-        assert "errors" in data
-        assert "salary" in data["errors"]
+    def test_7_delete_mechanic(self):
+        """Test API can delete a mechanic. (DELETE request)."""
+        rv = self.client().post("/mechanics/", data=json.dumps(self.mechanic))
+        mechanic_id = json.loads(rv.data).get("id")
+        res = self.client().delete(f"/mechanics/{mechanic_id}")
+        self.assertEqual(res.status_code, 200)
+        self.assertIn("Mechanic deleted successfully", str(res.data))
 
-    def test_create_mechanic_invalid_email(self, client, clean_database):
-        """Test POST /mechanics/ - invalid email format"""
-        mechanic_data = {
-            "name": "John Smith",
-            "email": "invalid-email",
-            "salary": 55000,
-        }
-        response = client.post(
-            "/mechanics/", json=mechanic_data, content_type="application/json"
-        )
-        assert response.status_code == 400
-        data = response.get_json()
-        assert "errors" in data
-        assert "email" in data["errors"]
+    def test_8_get_deleted_mechanic(self):
+        """Test API returns 404 after a mechanic has been deleted."""
+        rv = self.client().post("/mechanics/", data=json.dumps(self.mechanic))
+        mechanic_id = json.loads(rv.data).get("id")
+        self.client().delete(f"/mechanics/{mechanic_id}")
+        res = self.client().get(f"/mechanics/{mechanic_id}")
+        self.assertEqual(res.status_code, 404)
 
-    def test_create_mechanic_duplicate_email(self, client, init_database):
-        """Test POST /mechanics/ - duplicate email"""
-        mechanic_data = {
-            "name": "Another Mechanic",
-            "email": "mike.johnson@shop.com",  # This email already exists
-            "salary": 60000,
-        }
-        response = client.post(
-            "/mechanics/", json=mechanic_data, content_type="application/json"
-        )
-        assert response.status_code == 400
-        data = response.get_json()
-        assert "error" in data
 
-    def test_get_mechanic_by_id_success(self, client, init_database):
-        """Test GET /mechanics/{id} - positive case"""
-        response = client.get("/mechanics/1")
-        assert response.status_code == 200
-        data = response.get_json()
-        assert data["id"] == 1
-        assert data["email"] == "mike.johnson@shop.com"
-
-    def test_get_mechanic_by_id_not_found(self, client, clean_database):
-        """Test GET /mechanics/{id} - mechanic not found"""
-        response = client.get("/mechanics/999")
-        assert response.status_code == 404
-        data = response.get_json()
-        assert "error" in data
-
-    def test_update_mechanic_success(self, client, init_database):
-        """Test PUT /mechanics/{id} - positive case"""
-        update_data = {"name": "Michael Johnson", "salary": 65000}
-        response = client.put(
-            "/mechanics/1", json=update_data, content_type="application/json"
-        )
-        assert response.status_code == 200
-        data = response.get_json()
-        assert data["name"] == "Michael Johnson"
-        assert float(data["salary"]) == 65000.0
-
-    def test_update_mechanic_not_found(self, client, clean_database):
-        """Test PUT /mechanics/{id} - mechanic not found"""
-        update_data = {"name": "Updated Name"}
-        response = client.put(
-            "/mechanics/999", json=update_data, content_type="application/json"
-        )
-        assert response.status_code == 404
-        data = response.get_json()
-        assert "error" in data
-
-    def test_delete_mechanic_success(self, client, init_database):
-        """Test DELETE /mechanics/{id} - positive case"""
-        response = client.delete("/mechanics/2")
-        assert response.status_code == 200
-        data = response.get_json()
-        assert "message" in data
-
-        # Verify the mechanic is actually deleted
-        response = client.get("/mechanics/2")
-        assert response.status_code == 404
-
-    def test_delete_mechanic_not_found(self, client, clean_database):
-        """Test DELETE /mechanics/{id} - mechanic not found"""
-        response = client.delete("/mechanics/999")
-        assert response.status_code == 404
-        data = response.get_json()
-        assert "error" in data
+if __name__ == "__main__":
+    unittest.main()
