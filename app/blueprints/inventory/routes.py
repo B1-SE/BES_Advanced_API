@@ -2,17 +2,38 @@
 Inventory routes for the mechanic shop application.
 """
 from flask import request, jsonify
-from app.extensions import db, limiter
+from app.extensions import db, limiter, cache
 from app.models.inventory import InventoryItem
 from .schemas import inventory_item_schema, inventory_items_schema
 from decimal import Decimal, InvalidOperation
 from . import inventory_bp
-
+# from app.auth import token_required  # Uncomment if you implement authentication
 
 @inventory_bp.route("/", methods=["GET"])
+@cache.cached(timeout=300)
 @limiter.limit("100 per minute")
 def get_all_inventory():
-    """Get all inventory items"""
+    """
+    Get all inventory items.
+    ---
+    tags:
+      - Inventory
+    summary: Retrieve all inventory items
+    responses:
+      200:
+        description: List of inventory items
+        schema:
+          type: object
+          properties:
+            inventory:
+              type: array
+              items:
+                $ref: '#/definitions/InventoryItem'
+            count:
+              type: integer
+      500:
+        description: Server error
+    """
     try:
         items = db.session.scalars(db.select(InventoryItem)).all()
         result = inventory_items_schema.dump(items)
@@ -20,11 +41,32 @@ def get_all_inventory():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
 @inventory_bp.route("/<int:item_id>", methods=["GET"])
+@cache.cached(timeout=300)
 @limiter.limit("100 per minute")
 def get_inventory_item(item_id):
-    """Get a specific inventory item"""
+    """
+    Get a specific inventory item by ID.
+    ---
+    tags:
+      - Inventory
+    summary: Retrieve an inventory item by ID
+    parameters:
+      - name: item_id
+        in: path
+        required: true
+        type: integer
+        description: The ID of the inventory item
+    responses:
+      200:
+        description: Inventory item found
+        schema:
+          $ref: '#/definitions/InventoryItem'
+      404:
+        description: Inventory item not found
+      500:
+        description: Server error
+    """
     try:
         item = db.session.get(InventoryItem, item_id)
         if not item:
@@ -33,11 +75,56 @@ def get_inventory_item(item_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
 @inventory_bp.route("/", methods=["POST"])
+# @token_required  # Uncomment if you implement authentication
 @limiter.limit("50 per minute")
 def create_inventory_item():
-    """Create a new inventory item"""
+    """
+    Create a new inventory item.
+    ---
+    tags:
+      - Inventory
+    summary: Create inventory item
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [name, quantity, price]
+            properties:
+              name:
+                type: string
+                description: Item name
+              description:
+                type: string
+                description: Item description
+              quantity:
+                type: integer
+                description: Quantity in stock
+              price:
+                type: number
+                format: float
+                description: Item price
+              supplier:
+                type: string
+                description: Supplier name
+              category:
+                type: string
+                description: Item category
+              reorder_level:
+                type: integer
+                description: Reorder level threshold
+    responses:
+      201:
+        description: Inventory item created
+        schema:
+          $ref: '#/definitions/InventoryItem'
+      400:
+        description: Invalid input
+      500:
+        description: Server error
+    """
     try:
         data = request.get_json()
 
@@ -83,11 +170,56 @@ def create_inventory_item():
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
 
-
 @inventory_bp.route("/<int:item_id>", methods=["PUT"])
+# @token_required  # Uncomment if you implement authentication
 @limiter.limit("50 per minute")
 def update_inventory_item(item_id):
-    """Update an inventory item"""
+    """
+    Update an inventory item by ID.
+    ---
+    tags:
+      - Inventory
+    summary: Update inventory item
+    parameters:
+      - name: item_id
+        in: path
+        required: true
+        type: integer
+        description: The ID of the inventory item
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              name:
+                type: string
+              description:
+                type: string
+              quantity:
+                type: integer
+              price:
+                type: number
+                format: float
+              supplier:
+                type: string
+              category:
+                type: string
+              reorder_level:
+                type: integer
+    responses:
+      200:
+        description: Inventory item updated
+        schema:
+          $ref: '#/definitions/InventoryItem'
+      400:
+        description: Invalid input
+      404:
+        description: Inventory item not found
+      500:
+        description: Server error
+    """
     try:
         item = db.session.get(InventoryItem, item_id)
         if not item:
@@ -130,11 +262,35 @@ def update_inventory_item(item_id):
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
 
-
 @inventory_bp.route("/<int:item_id>", methods=["DELETE"])
+# @token_required  # Uncomment if you implement authentication
 @limiter.limit("50 per minute")
 def delete_inventory_item(item_id):
-    """Delete an inventory item"""
+    """
+    Delete an inventory item by ID.
+    ---
+    tags:
+      - Inventory
+    summary: Delete inventory item
+    parameters:
+      - name: item_id
+        in: path
+        required: true
+        type: integer
+        description: The ID of the inventory item
+    responses:
+      200:
+        description: Inventory item deleted
+        schema:
+          type: object
+          properties:
+            message:
+              type: string
+      404:
+        description: Inventory item not found
+      500:
+        description: Server error
+    """
     try:
         item = db.session.get(InventoryItem, item_id)
         if not item:

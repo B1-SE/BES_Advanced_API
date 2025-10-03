@@ -1,18 +1,17 @@
 """
 Application factory for the mechanic shop API.
 """
-from flask import Flask, send_from_directory, jsonify
-from flask import Blueprint, render_template
+from flask import Flask, jsonify
 from flask_migrate import Migrate
-from datetime import datetime
-import os
-from pathlib import Path
 from dotenv import load_dotenv
+from pathlib import Path
 from flasgger import Flasgger
 
 from app.extensions import db, ma, cache, limiter, jwt, cors
 from config import config
 
+# Load environment variables from .env file at startup
+load_dotenv(dotenv_path=Path(".env"))
 
 def create_app(config_name="default"):
     """
@@ -36,14 +35,15 @@ def create_app(config_name="default"):
     try:
         Migrate(app, db)
     except NameError:
-        pass  # flask_migrate is not installed, skip
+        app.logger.warning("Flask-Migrate is not installed. Database migrations are unavailable.")
 
     # Register blueprints
     register_blueprints(app)
 
-    # Create database tables if they don't exist
-    with app.app_context():
-        db.create_all()
+    # Create database tables only in non-production environments
+    if app.config.get("ENV") != "production":
+        with app.app_context():
+            db.create_all()
 
     # Define a simple root route
     @app.route("/")
@@ -69,8 +69,8 @@ def register_blueprints(app):
         ("app.blueprints.mechanics.routes", "mechanics_bp", "/mechanics"),
         ("app.blueprints.service_tickets.routes", "service_tickets_bp", "/service-tickets"),
         ("app.blueprints.customers.routes", "customers_bp", "/customers"),
-        ("app.blueprints.calculations", "calculations_bp", None),
-        ("app.blueprints.inventory", "inventory_bp", None),
+        ("app.blueprints.calculations.routes", "calculations_bp", "/calculations"),
+        ("app.blueprints.inventory.routes", "inventory_bp", "/inventory"),
     ]
 
     for module_path, bp_name, url_prefix in blueprints_to_register:
@@ -79,4 +79,7 @@ def register_blueprints(app):
             blueprint = getattr(module, bp_name)
             app.register_blueprint(blueprint, url_prefix=url_prefix)
         except (ImportError, AttributeError) as e:
-            print(f"Warning: Could not import or register blueprint '{bp_name}' from '{module_path}': {e}")
+            app.logger.warning(f"Could not import or register blueprint '{bp_name}' from '{module_path}': {e}")
+
+# Note:
+# Make sure that every endpoint in your blueprints (routes.py files) includes a proper YAML docstring for Flasgger/Swagger UI documentation!
